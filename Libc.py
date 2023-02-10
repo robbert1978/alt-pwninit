@@ -47,7 +47,7 @@ def unstrip(libc: LIBC):
     shutil.rmtree(working_dir)
 def get_ld(libc: LIBC):
     id_=random.randint(50,100)
-    working_dir="/tmp/get_ld_{}",format(id_)
+    working_dir="/tmp/get_ld_{}".format(id_)
     if os.path.exists(working_dir):
         shutil.rmtree(working_dir)
     os.mkdir(working_dir)
