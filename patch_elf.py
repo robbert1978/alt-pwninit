@@ -2,10 +2,15 @@ import argparse,os
 from pwn import ELF
 from Libc import LIBC
 def patch(bin: ELF,libc:LIBC,ld:ELF):
-    run_patchelf=os.system(f"patchelf --replace-needed libc.so.6 {libc.path} --set-interpreter {ld.path} --output {bin.path}_patched {bin.path}")
+    run_patchelf=os.system("patchelf --replace-needed libc.so.6 {} --set-interpreter {} --output {}_patched {}".format(
+        libc.path,
+        ld.path,
+        bin.path,
+        bin.path
+    ))
     if run_patchelf:
-        raise ValueError(f"patchelf return {run_patchelf}")
-    print(f"New file: {bin}_patched")
+        raise ValueError("patchelf return {}".format(run_patchelf))
+    print("New file: {}_patched".format(bin.path))
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-b","--bin",help="<Binary to pwn>")

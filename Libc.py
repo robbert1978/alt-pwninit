@@ -22,8 +22,8 @@ class LIBC(ELF):
 			raise Exception("Not Ubuntu GLIBC")
 		self.short_version_string=self.long_version_string.split("-")[0]
 def fetch_file(working_dir: str,name_file: str):
-    url=f"{pkd_url}{name_file}"
-    wget.download(url,out=f"{working_dir}/{name_file}")
+    url="{}{}".format(pkd_url,name_file)
+    wget.download(url,out="{}/{}".format(working_dir,name_file))
 def extract_file(file_path,out_dir):
     Archive(file_path).extractall(out_dir)
 def unstrip(libc: LIBC):
@@ -34,7 +34,7 @@ def unstrip(libc: LIBC):
     os.mkdir(working_dir)
     name_file_deb=f"libc6-dbg_{libc.long_version_string}_{libc.arch}.deb"
     fetch_file(working_dir,name_file_deb)
-    extract_file(f"{working_dir}/{name_file_deb}",working_dir)
+    extract_file("{}/{}".format(working_dir,name_file_deb),working_dir)
     unstripping_libc=os.system("eu-unstrip -o {} {} {}/usr/lib/debug/lib/x86_64-linux-gnu/libc-{}.so".format(
         libc.path,
         libc.path,
@@ -43,22 +43,25 @@ def unstrip(libc: LIBC):
     ))
     if unstripping_libc:
         shutil.rmtree(working_dir)
-        raise ValueError(f"eu-unstrip return {unstripping_libc}")
+        raise ValueError("eu-unstrip return {}".format(unstripping_libc))
     shutil.rmtree(working_dir)
 def get_ld(libc: LIBC):
     id_=random.randint(50,100)
-    working_dir=f"/tmp/get_ld_{id_}"
+    working_dir="/tmp/get_ld_{}",format(id_)
     if os.path.exists(working_dir):
         shutil.rmtree(working_dir)
     os.mkdir(working_dir)
-    name_file_deb=f"libc6_{libc.long_version_string}_{libc.arch}.deb"
+    name_file_deb="libc6_{}_{}.deb".format(libc.long_version_string,libc.arch)
     fetch_file(working_dir,name_file_deb)
-    extract_file(f"{working_dir}/{name_file_deb}",working_dir)
-    shutil.copy(f"{working_dir}/lib/x86_64-linux-gnu/ld-{libc.short_version_string}.so",".")
+    extract_file("{}/{}".format(working_dir,name_file_deb),working_dir)
+    shutil.copy("{}/lib/x86_64-linux-gnu/ld-{}.so".format(
+        working_dir,
+        libc.short_version_string,
+    ),".")
     shutil.rmtree(working_dir)
-    return ELF(f"ld-{libc.short_version_string}.so")
+    return ELF("ld-{}.so",format(libc.short_version_string))
 def getsrc(libc: LIBC):
-    srcfile=f"glibc_{libc.short_version_string}.orig.tar.xz"
+    srcfile="glibc_{}.orig.tar.xz".format(libc.short_version_string)
     fetch_file(".",srcfile)
 def main():
     parser = argparse.ArgumentParser()
