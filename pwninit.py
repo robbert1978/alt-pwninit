@@ -12,7 +12,7 @@ def main():
     file_bin=ELF(args.bin)  #Check bin is a valid ELF ?
     file_libc=Libc.LIBC(args.libc) #Check bin is a valid LIBC ?
     if args.ld:
-        file_ld=args.ld
+        file_ld=ELF(args.ld)
     else:
         file_ld=Libc.get_ld(file_libc)
     patch_elf.patch(file_bin,file_libc,file_ld)

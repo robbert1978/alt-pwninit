@@ -1,8 +1,8 @@
 import argparse,os
 from pwn import ELF
 from Libc import LIBC
-def patch(bin: ELF,libc,ld):
-    run_patchelf=os.system(f"patchelf --replace-needed libc.so.6 {libc.path} --set-interpreter {ld} --output {bin.path}_patched {bin.path}")
+def patch(bin: ELF,libc:LIBC,ld:ELF):
+    run_patchelf=os.system(f"patchelf --replace-needed libc.so.6 {libc.path} --set-interpreter {ld.path} --output {bin.path}_patched {bin.path}")
     if run_patchelf:
         raise ValueError(f"patchelf return {run_patchelf}")
     print(f"New file: {bin}_patched")
@@ -17,7 +17,7 @@ def main():
         return 1
     file_bin=ELF(args.bin) #Check bin is a valid ELF ?
     file_libc=LIBC(args.libc)#Check bin is a valid LIBC ?
-    file_ld=args.ld
+    file_ld=ELF(args.ld) #Check ld is a valid ELF ?
     patch(file_bin,file_libc,file_ld)
 if __name__=='__main__':
     main()
