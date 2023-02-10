@@ -28,24 +28,25 @@ def extract_file(file_path,out_dir):
     Archive(file_path).extractall(out_dir)
 def unstrip(libc: LIBC):
     id_=random.randint(1,50)
-    working_dir=f"/tmp/unstrip_{id_}"
+    working_dir="/tmp/unstrip_{}".format(id_)
     if os.path.exists(working_dir):
         shutil.rmtree(working_dir)
     os.mkdir(working_dir)
-    name_file_deb=f"libc6-dbg_{libc.long_version_string}_{libc.arch}.deb"
+    name_file_deb="libc6-dbg_{}_{}.deb".format(libc.long_version_string,libc.arch)
     fetch_file(working_dir,name_file_deb)
     extract_file("{}/{}".format(working_dir,name_file_deb),working_dir)
     try:
-        unstripping_libc=os.system("eu-unstrip -o {} {} {}/usr/lib/debug/lib/x86_64-linux-gnu/libc-{}.so".format(
+        unstripping_libc=os.system("eu-unstrip -o {} {} {}/usr/lib/debug/lib/{}-linux-gnu/libc-{}.so".format(
             libc.path,
             libc.path,
             working_dir,
+            "x86_64" if libc.arch=="amd64" else "i386",
             libc.short_version_string,
         ))
         if unstripping_libc: 
             raise ValueError("eu-unstrip return {}".format(unstripping_libc))
     except ValueError: #use build-id files method
-        build_id=libc.buildid
+        build_id=libc.buildid ;input(f"{working_dir}")
         unstripping_libc=os.system("eu-unstrip -o {} {} {}/usr/lib/debug/.build-id/{}/{}.debug".format(
             libc.path,
             libc.path,
@@ -53,9 +54,6 @@ def unstrip(libc: LIBC):
             build_id[:1].hex(), #build_id[0] is int
             build_id[1:].hex()
         ))
-        if unstripping_libc:
-            shutil.rmtree(working_dir)
-            raise ValueError("eu-unstrip return {}".format(unstripping_libc))
         file_ld=get_ld(libc) #This method requires ld
         ld_buildid=file_ld.buildid
         unstripping_ld=os.system("eu-unstrip -o {} {} {}/usr/lib/debug/.build-id/{}/{}.debug".format(
@@ -78,8 +76,9 @@ def get_ld(libc: LIBC):
     name_file_deb="libc6_{}_{}.deb".format(libc.long_version_string,libc.arch)
     fetch_file(working_dir,name_file_deb)
     extract_file("{}/{}".format(working_dir,name_file_deb),working_dir)
-    shutil.copy("{}/lib/x86_64-linux-gnu/ld-{}.so".format(
+    shutil.copy("{}/lib/{}-linux-gnu/ld-{}.so".format(
         working_dir,
+        "x86_64" if libc.arch=="amd64" else "i386",
         libc.short_version_string,
     ),".")
     shutil.rmtree(working_dir)
