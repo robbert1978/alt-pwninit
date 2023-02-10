@@ -35,15 +35,39 @@ def unstrip(libc: LIBC):
     name_file_deb=f"libc6-dbg_{libc.long_version_string}_{libc.arch}.deb"
     fetch_file(working_dir,name_file_deb)
     extract_file("{}/{}".format(working_dir,name_file_deb),working_dir)
-    unstripping_libc=os.system("eu-unstrip -o {} {} {}/usr/lib/debug/lib/x86_64-linux-gnu/libc-{}.so".format(
-        libc.path,
-        libc.path,
-        working_dir,
-        libc.short_version_string,
-    ))
-    if unstripping_libc:
-        shutil.rmtree(working_dir)
-        raise ValueError("eu-unstrip return {}".format(unstripping_libc))
+    try:
+        unstripping_libc=os.system("eu-unstrip -o {} {} {}/usr/lib/debug/lib/x86_64-linux-gnu/libc-{}.so".format(
+            libc.path,
+            libc.path,
+            working_dir,
+            libc.short_version_string,
+        ))
+        if unstripping_libc: 
+            raise ValueError("eu-unstrip return {}".format(unstripping_libc))
+    except ValueError: #use build-id files method
+        build_id=libc.buildid
+        unstripping_libc=os.system("eu-unstrip -o {} {} {}/usr/lib/debug/.build-id/{}/{}.debug".format(
+            libc.path,
+            libc.path,
+            working_dir,
+            build_id[:1].hex(), #build_id[0] is int
+            build_id[1:].hex()
+        ))
+        if unstripping_libc:
+            shutil.rmtree(working_dir)
+            raise ValueError("eu-unstrip return {}".format(unstripping_libc))
+        file_ld=get_ld(libc) #This method requires ld
+        ld_buildid=file_ld.buildid
+        unstripping_ld=os.system("eu-unstrip -o {} {} {}/usr/lib/debug/.build-id/{}/{}.debug".format(
+            file_ld.path,
+            file_ld.path,
+            working_dir,
+            ld_buildid[:1].hex(),
+            ld_buildid[1:].hex()
+        ))
+        if unstripping_ld:
+            shutil.rmtree(working_dir)
+            raise ValueError("eu-unstrip return {}".format(unstripping_libc))
     shutil.rmtree(working_dir)
 def get_ld(libc: LIBC):
     id_=random.randint(50,100)
@@ -59,7 +83,7 @@ def get_ld(libc: LIBC):
         libc.short_version_string,
     ),".")
     shutil.rmtree(working_dir)
-    return ELF("ld-{}.so".format(libc.short_version_string))
+    return ELF("ld-{}.so".format(libc.short_version_string),checksec=0)
 def getsrc(libc: LIBC):
     srcfile="glibc_{}.orig.tar.xz".format(libc.short_version_string)
     fetch_file(".",srcfile)
@@ -82,4 +106,3 @@ def main():
         getsrc(file_libc)
 if __name__=='__main__':
     main()
-
