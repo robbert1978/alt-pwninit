@@ -1,29 +1,21 @@
-import patch_elf
-import unstrip_libc
-import pwn,sys,os
-import get_linker
-from check_requirement import *
-from Libc import *
+import patch_elf,Libc,argparse
+from pwn import ELF
 def main():
-    check_requirement()
-    if (not pwn.args.BIN) and (not pwn.args.LIBC):
-        print(f"""{sys.argv[0]} [OPTIONS]
-OPTIONS:
-[BIN=<Binary to pwn>]
-[LIBC=<Challenge libc>]
-[LD=<A linker to preload the libc> (Optional)]
-""")
-        exit(1)
-    pwn.log.info(f"bin: {pwn.args.BIN}")
-    pwn.log.info(f"libc: {pwn.args.LIBC}")
-    bin_file=pwn.ELF(pwn.args.BIN,checksec=0)
-    libc=unstrip_libc.LIBC(pwn.args.LIBC)
-    if pwn.args.LD:
-        ld=pwn.args.LD
-        pwn.log.info(f"ld: {ld}")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-b","--bin",help="<Binary to pwn>")
+    parser.add_argument("-l","--libc",help="<Challenge libc>")
+    parser.add_argument("--ld",help="<A linker to preload the libc> (Optional)")
+    args = parser.parse_args()
+    if (not args.bin) or (not args.libc) :
+        print(args.help)
+        return 1
+    file_bin=ELF(args.bin)  #Check bin is a valid ELF ?
+    file_libc=Libc.LIBC(args.libc) #Check bin is a valid LIBC ?
+    if args.ld:
+        file_ld=args.ld
     else:
-        ld=get_linker.get_linker(libc)
-    unstrip_libc.unstrip(libc)
-    patch_elf.patch(bin_file,libc.path,ld)
+        file_ld=Libc.get_ld(file_libc)
+    patch_elf.patch(file_bin,file_libc,file_ld)
+
 if __name__=='__main__':
     main()
