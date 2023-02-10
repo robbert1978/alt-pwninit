@@ -46,7 +46,7 @@ def unstrip(libc: LIBC):
         if unstripping_libc: 
             raise ValueError("eu-unstrip return {}".format(unstripping_libc))
     except ValueError: #use build-id files method
-        build_id=libc.buildid ;input(f"{working_dir}")
+        build_id=libc.buildid
         unstripping_libc=os.system("eu-unstrip -o {} {} {}/usr/lib/debug/.build-id/{}/{}.debug".format(
             libc.path,
             libc.path,
@@ -76,11 +76,16 @@ def get_ld(libc: LIBC):
     name_file_deb="libc6_{}_{}.deb".format(libc.long_version_string,libc.arch)
     fetch_file(working_dir,name_file_deb)
     extract_file("{}/{}".format(working_dir,name_file_deb),working_dir)
-    shutil.copy("{}/lib/{}-linux-gnu/ld-{}.so".format(
-        working_dir,
-        "x86_64" if libc.arch=="amd64" else "i386",
-        libc.short_version_string,
-    ),".")
+    try:
+        shutil.copy("{}/lib/{}-linux-gnu/ld-{}.so".format(
+            working_dir,
+            "x86_64" if libc.arch=="amd64" else "i386",
+            libc.short_version_string,
+        ),".")
+    except FileNotFoundError:
+        shutil.copy("{}/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2".format(working_dir),".") # libc >=2.34
+        shutil.rmtree(working_dir)
+        return ELF("./ld-linux-x86-64.so.2",checksec=0)
     shutil.rmtree(working_dir)
     return ELF("ld-{}.so".format(libc.short_version_string),checksec=0)
 def getsrc(libc: LIBC):
