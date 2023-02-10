@@ -1,11 +1,11 @@
 import patch_elf
 import unstrip_libc
 import pwn,sys,os
-required_tools=["7z","patchelf","eu-unstrip","wget","patchelf"]
+import get_linker
+from check_requirement import *
+from Libc import *
 def main():
-    for tool in required_tools:
-        if os.system(f"which {tool} 1>/dev/null"):
-            raise Exception(f"Plz install {tool}")
+    check_requirement()
     if (not pwn.args.BIN) and (not pwn.args.LIBC):
         print(f"""{sys.argv[0]} [OPTIONS]
 OPTIONS:
@@ -22,7 +22,7 @@ OPTIONS:
         ld=pwn.args.LD
         pwn.log.info(f"ld: {ld}")
     else:
-        ld=unstrip_libc.get_linker(libc)
+        ld=get_linker.get_linker(libc)
     unstrip_libc.unstrip(libc)
     patch_elf.patch(bin_file,libc.path,ld)
 if __name__=='__main__':
