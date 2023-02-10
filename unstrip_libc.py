@@ -13,38 +13,43 @@ class LIBC(pwn.ELF):
 			raise Exception("Not Ubuntu GLIBC")
 		self.version=self.name.split("-")[0]
 		f.close()
+def fetch_deb(libc: LIBC,working_dir: str,file_deb: str):
+	cmd=os.system(f"""
+	rm -rf  {working_dir}
+	mkdir {working_dir}
+	wget  -O /tmp/{file_deb} {pkd_url}{file_deb} 1>/dev/null 2>/dev/null
+	7z x /tmp/{file_deb} -o{working_dir} 1>/dev/null
+	7z x {working_dir}/data.* -o{working_dir} 1>/dev/null
+	sleep 1
+	""")
+	if cmd:
+		raise Exception("Error when fetching deb")
 def unstrip(libc: LIBC):
 	pwn.log.info("Unstripping libc")
 	id_=random.randint(1,50)
 	working_dir=f"/tmp/{id_}"
 	file_deb=f"libc6-dbg_{libc.name}_{libc.arch}.deb"
 	pwn.log.info(f"Download {pkd_url}{file_deb}")
+	fetch_deb(libc,working_dir,file_deb)
 	cmd=os.system(f"""
-mkdir {working_dir}
-wget -O /tmp/{file_deb} {pkd_url}{file_deb} 1>/dev/null 2>/dev/null
-7z x /tmp/libc6-dbg_{libc.name}_{libc.arch}.deb -o/tmp/{id_}/ 1>/dev/null
-7z x {working_dir}/data.* -o{working_dir} 1>/dev/null
-eu-unstrip -o {libc.path} {libc.path} {working_dir}/usr/lib/debug/lib/x86_64-linux-gnu/libc-{libc.version}.so 
-rm -rf {working_dir}
-""")
+	eu-unstrip -o {libc.path} {libc.path} {working_dir}/usr/lib/debug/lib/x86_64-linux-gnu/libc-{libc.version}.so 
+	rm -rf {working_dir}
+	""")
 	if cmd:
-		raise Exception("Error")
+		raise Exception("Error when unstripping libc")
 def get_linker(libc: LIBC):
 	pwn.log.info("Getting linker")
 	id_=random.randint(50,100)
 	working_dir=f"/tmp/{id_}"
 	file_deb=f"libc6_{libc.name}_{libc.arch}.deb"
 	pwn.log.info(f"Download {pkd_url}{file_deb}")
+	fetch_deb(libc,working_dir,file_deb)
 	cmd=os.system(f"""
-mkdir {working_dir}
-wget  -O /tmp/{file_deb} {pkd_url}{file_deb} 1>/dev/null 2>/dev/null
-7z x /tmp/libc6_{libc.name}_{libc.arch}.deb -o{working_dir} 1>/dev/null
-7z x {working_dir}/data.* -o/tmp/{id_}/ 1>/dev/null
-cp {working_dir}/lib/x86_64-linux-gnu/ld-{libc.version}.so .
-rm -rf {working_dir} 
-""")
+	cp {working_dir}/lib/x86_64-linux-gnu/ld-{libc.version}.so .
+	rm -rf {working_dir} 
+	""")
 	if cmd:
-		raise Exception("Error")
+		raise Exception("Error when getting linker")
 	return f"ld-{libc.version}.so" #linker name
 
 def main():
