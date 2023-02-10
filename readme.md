@@ -1,6 +1,6 @@
 # Alt-pwninit
 
-Bye pwninit ¯\(ツ)/¯
+Bye pwninit ¯\\(ツ)/¯
 
 ## Requirement
 pwntools
