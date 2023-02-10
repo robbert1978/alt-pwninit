@@ -59,7 +59,7 @@ def get_ld(libc: LIBC):
         libc.short_version_string,
     ),".")
     shutil.rmtree(working_dir)
-    return ELF("ld-{}.so",format(libc.short_version_string))
+    return ELF("ld-{}.so".format(libc.short_version_string))
 def getsrc(libc: LIBC):
     srcfile="glibc_{}.orig.tar.xz".format(libc.short_version_string)
     fetch_file(".",srcfile)
