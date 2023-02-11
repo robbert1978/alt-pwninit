@@ -72,7 +72,7 @@ def get_ld(libc: LIBC):
             libc.short_version_string,
         ),".")
         file_ld=ELF("ld-{}.so".format(libc.short_version_string),checksec=0)
-    except:
+    except FileNotFoundError:
         shutil.copy("{}/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2".format(working_dir),".")
         file_ld=ELF("./ld-linux-x86-64.so.2",checksec=0)
     return file_ld
