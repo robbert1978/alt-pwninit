@@ -16,6 +16,7 @@ def main():
     else:
         file_ld=Libc.get_ld(file_libc)
     Libc.unstrip(file_libc)
+    Libc.unstrip_ld(file_libc,file_ld)
     patch_elf.patch(file_bin,file_libc,file_ld)
 
 if __name__=='__main__':
