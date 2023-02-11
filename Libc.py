@@ -71,9 +71,10 @@ def get_ld(libc: LIBC):
             "x86_64" if libc.arch=="amd64" else "i386",
             libc.short_version_string,
         ),".")
+        file_ld=ELF("ld-{}.so".format(libc.short_version_string),checksec=0)
     except:
-        shutil.copy("{}/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2".format(working_dir),b".")
-    file_ld=ELF("ld-{}.so".format(libc.short_version_string),checksec=0)
+        shutil.copy("{}/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2".format(working_dir),".")
+        file_ld=ELF("./ld-linux-x86-64.so.2",checksec=0)
     return file_ld
 def unstrip_ld(libc: LIBC,file_ld :ELF):
     id_=random.randint(1,50)
