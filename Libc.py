@@ -36,7 +36,7 @@ def unstrip(libc: LIBC):
     fetch_file(working_dir,libc6_dbg_deb)
     extract_file("{}/{}".format(working_dir,libc6_dbg_deb),working_dir)
     try:
-        unstripping_libc=os.system("eu-unstrip -o {} {} {}/usr/lib/debug/lib/{}-linux-gnu/libc-{}.so".format(
+        unstripping_libc=os.system("eu-unstrip -o {} {} {}/usr/lib/debug/lib/{}-linux-gnu/libc-{}.so 2>/dev/null".format(
             libc.path,
             libc.path,
             working_dir,
@@ -46,8 +46,8 @@ def unstrip(libc: LIBC):
         if unstripping_libc: 
             raise ValueError("eu-unstrip return {}".format(unstripping_libc))
     except ValueError: #use build-id files method
-        build_id=libc.buildid ;input(f"{working_dir}")
-        unstripping_libc=os.system("eu-unstrip -o {} {} {}/usr/lib/debug/.build-id/{}/{}.debug".format(
+        build_id=libc.buildid
+        unstripping_libc=os.system("eu-unstrip -o {} {} {}/usr/lib/debug/.build-id/{}/{}.debug 2>/dev/null".format(
             libc.path,
             libc.path,
             working_dir,
@@ -85,7 +85,7 @@ def unstrip_ld(libc: LIBC,file_ld :ELF):
     fetch_file(working_dir,libc6_dbg_deb)
     extract_file("{}/{}".format(working_dir,libc6_dbg_deb),working_dir)
     try: #unstrip ld binary
-        unstripping_ld=os.system("eu-unstrip -o {} {} {}/usr/lib/debug/lib/{}-linux-gnu/ld-{}.so".format(
+        unstripping_ld=os.system("eu-unstrip -o {} {} {}/usr/lib/debug/lib/{}-linux-gnu/ld-{}.so 2>/dev/null".format(
             file_ld.path,
             file_ld.path,
             working_dir,
@@ -96,7 +96,7 @@ def unstrip_ld(libc: LIBC,file_ld :ELF):
             raise ValueError("eu-unstrip return {}".format(unstripping_ld))
     except ValueError:
         ld_buildid=file_ld.buildid
-        unstripping_ld=os.system("eu-unstrip -o {} {} {}/usr/lib/debug/.build-id/{}/{}.debug".format(
+        unstripping_ld=os.system("eu-unstrip -o {} {} {}/usr/lib/debug/.build-id/{}/{}.debug 2>/dev/null".format(
             file_ld.path,
             file_ld.path,
             working_dir,

@@ -2,7 +2,7 @@ import argparse,os
 from pwn import ELF
 from Libc import LIBC
 def patch(bin: ELF,libc:LIBC,ld:ELF):
-    run_patchelf=os.system("patchelf --replace-needed libc.so.6 {} --set-interpreter {} --output {}_patched {}".format(
+    run_patchelf=os.system("patchelf --replace-needed libc.so.6 {} --set-interpreter {} --output {}_patched {} 2>/dev/null".format(
         libc.path,
         ld.path,
         bin.path,
