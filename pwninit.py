@@ -2,12 +2,11 @@ import patch_elf,Libc,argparse
 from pwn import ELF
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-b","--bin",help="<Binary to pwn>")
-    parser.add_argument("-l","--libc",help="<Challenge libc>")
+    parser.add_argument("-b","--bin",metavar="<Bin file>",help="<Binary to pwn>",required=True)
+    parser.add_argument("-l","--libc",metavar="<Libc file>",help="<Challenge libc>",required=True)
     parser.add_argument("--ld",help="<A linker to preload the libc> (Optional)")
     args = parser.parse_args()
     if (not args.bin) or (not args.libc) :
-        print(args.help)
         return 1
     file_bin=ELF(args.bin)  #Check bin is a valid ELF ?
     file_libc=Libc.LIBC(args.libc) #Check bin is a valid LIBC ?

@@ -1,10 +1,12 @@
-import wget,os,random,shutil,argparse
+import wget,os,random,shutil,argparse,re
 from pyunpack import Archive
 from pwn import ELF
 pkd_url="https://launchpad.net/ubuntu/+archive/primary/+files/"
 def find_Ubuntu_libc(path):
     f=open(path,"rb")
-    long_version_string=f.read().split(b"GNU C Library (Ubuntu GLIBC ")[1].split(b")")[0].decode()
+    data=f.read()
+    full_version_string=re.findall(b"\(Ubuntu GLIBC .*\)",data)[0].decode()
+    long_version_string=full_version_string.removeprefix("(Ubuntu GLIBC ").removesuffix(")")
     f.close()
     return long_version_string
 class LIBC(ELF):
@@ -119,7 +121,6 @@ def main():
     parser.add_argument("-src","--get_src",help="Get soruce code of libc",action="store_true")
     args=parser.parse_args()
     if not args.libc:
-        print(args.help)
         return 1
     file_libc=LIBC(args.libc)
     if args.unstrip:
