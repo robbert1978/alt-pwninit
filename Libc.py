@@ -6,7 +6,7 @@ def find_Ubuntu_libc(path):
     f=open(path,"rb")
     data=f.read()
     full_version_string=re.findall(b"\(Ubuntu GLIBC .*\)",data)[0].decode()
-    long_version_string=full_version_string.removeprefix("(Ubuntu GLIBC ").removesuffix(")")
+    long_version_string=full_version_string.replace("(Ubuntu GLIBC ","").replace(")","")
     f.close()
     return long_version_string
 class LIBC(ELF):
