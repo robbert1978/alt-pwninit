@@ -1,4 +1,5 @@
-import wget,os,random,shutil,argparse,re
+import os,random,shutil,argparse,re
+import wget
 from pyunpack import Archive
 from pwn import ELF
 pkd_url="https://launchpad.net/ubuntu/+archive/primary/+files/"
