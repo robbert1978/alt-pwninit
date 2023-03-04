@@ -1,21 +1,20 @@
-import argparse,os
+import argparse,subprocess
 from pwn import ELF
 from Libc import LIBC
 def patch(bin: ELF,libc:LIBC,ld:ELF):
-    run_patchelf=os.system("""
-	patchelf \
-	--replace-needed libc.so.6 {} \
-	--set-interpreter {} \
-	--output {}_patched \
-	{} 2>/dev/null""".format(
-        libc.path,
-        ld.path,
-        bin.path,
-        bin.path
-    ))
-    if run_patchelf:
-        raise ValueError("patchelf return {}".format(run_patchelf))
-    print("\nNew file: {}_patched".format(bin.path))
+    get_file_name = lambda file_path: file_path.split("/")[-1]
+    if get_file_name(libc.path) != "libc.so.6":
+        subprocess.check_call(["/usr/bin/rm","-rf","./libc.so.6"])
+        make_symlink=subprocess.check_call(["/bin/ln","-s","./{}".format(get_file_name(libc.path)),"libc.so.6"])
+    run_patchelf=subprocess.check_call(
+            ["/usr/bin/patchelf",
+              "--set-rpath",".",
+              "--set-interpreter","./{}".format(get_file_name(ld.path)),
+              "--output","{}_patched".format(get_file_name(bin.path)),
+              "./{}".format(get_file_name(bin.path)),        
+            ]
+    )
+    print("\nNew file: {}_patched".format(get_file_name(bin.path)))
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-b","--bin",metavar="<Bin file>",help="<Binary to pwn>",required=True)

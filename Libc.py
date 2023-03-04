@@ -1,4 +1,4 @@
-import os,random,shutil,argparse,re
+import os,random,shutil,argparse,re,subprocess
 import wget
 from pyunpack import Archive
 from pwn import ELF
@@ -39,24 +39,28 @@ def unstrip(libc: LIBC):
     fetch_file(working_dir,libc6_dbg_deb)
     extract_file("{}/{}".format(working_dir,libc6_dbg_deb),working_dir)
     try:
-        unstripping_libc=os.system("eu-unstrip -o {} {} {}/usr/lib/debug/lib/{}-linux-gnu/libc-{}.so 2>/dev/null".format(
-            libc.path,
-            libc.path,
-            working_dir,
-            "x86_64" if libc.arch=="amd64" else "i386",
-            libc.short_version_string,
-        ))
-        if unstripping_libc: 
-            raise ValueError("eu-unstrip return {}".format(unstripping_libc))
-    except ValueError: #use build-id files method
+        unstripping_libc=subprocess.check_call(
+              ["/usr/bin/eu-unstrip",
+               "-o",libc.path,
+                libc.path, 
+                "{}/usr/lib/debug/lib/{}-linux-gnu/libc-{}.so".format(
+                    working_dir,
+                    "x86_64" if libc.arch=="amd64" else "i386",
+                    libc.short_version_string)
+        ])
+    except subprocess.CalledProcessError: #use build-id files method
         build_id=libc.buildid
-        unstripping_libc=os.system("eu-unstrip -o {} {} {}/usr/lib/debug/.build-id/{}/{}.debug 2>/dev/null".format(
-            libc.path,
-            libc.path,
-            working_dir,
-            build_id[:1].hex(), #build_id[0] is int
-            build_id[1:].hex()
-        ))
+        unstripping_libc=subprocess.check_call(
+            ["/usr/bin/eu-unstrip",
+              "-o",libc.path,
+              libc.path, 
+              "{}/usr/lib/debug/.build-id/{}/{}.debug".format(
+                    working_dir,
+                    build_id[:1].hex(), #build_id[0] is int
+                    build_id[1:].hex()
+              )
+            ]
+        )
         file_ld=get_ld(libc) #This method requires ld
     shutil.rmtree(working_dir)
 def get_ld(libc: LIBC):
@@ -89,24 +93,28 @@ def unstrip_ld(libc: LIBC,file_ld :ELF):
     fetch_file(working_dir,libc6_dbg_deb)
     extract_file("{}/{}".format(working_dir,libc6_dbg_deb),working_dir)
     try: #unstrip ld binary
-        unstripping_ld=os.system("eu-unstrip -o {} {} {}/usr/lib/debug/lib/{}-linux-gnu/ld-{}.so 2>/dev/null".format(
-            file_ld.path,
-            file_ld.path,
-            working_dir,
-            "x86_64" if libc.arch=="amd64" else "i386",
-            libc.short_version_string,
-        ))
-        if unstripping_ld:
-            raise ValueError("eu-unstrip return {}".format(unstripping_ld))
-    except ValueError:
+        unstripping_ld=subprocess.check_call(
+            ["/usr/bin/eu-unstrip",
+             "-o",file_ld.path,
+             file_ld.path,
+             "{}/usr/lib/debug/lib/{}-linux-gnu/ld-{}.so".format(
+                working_dir,
+                "x86_64" if libc.arch=="amd64" else "i386",
+                libc.short_version_string)
+            ]
+        )
+    except subprocess.CalledProcessError:
         ld_buildid=file_ld.buildid
-        unstripping_ld=os.system("eu-unstrip -o {} {} {}/usr/lib/debug/.build-id/{}/{}.debug 2>/dev/null".format(
-            file_ld.path,
-            file_ld.path,
-            working_dir,
-            ld_buildid[:1].hex(),
-            ld_buildid[1:].hex()
-        ))
+        unstripping_ld=subprocess.check_call(
+             ["/usr/bin/eu-unstrip",
+             "-o",file_ld.path,
+             file_ld.path,
+             "{}/usr/lib/debug/.build-id/{}/{}.debug".format(
+                working_dir,
+                ld_buildid[:1].hex(),
+                ld_buildid[1:].hex())
+            ]
+        )
         if unstripping_ld:
             shutil.rmtree(working_dir)
             raise ValueError("eu-unstrip return {}".format(unstripping_ld))
