@@ -2,40 +2,47 @@ import os,random,shutil,argparse,re,subprocess
 import wget
 from pyunpack import Archive
 from pwn import ELF
+import uuid
 pkd_url="https://launchpad.net/ubuntu/+archive/primary/+files/"
-def find_Ubuntu_libc(path):
+def libcVersion(path) -> str:
     f=open(path,"rb")
-    data=f.read()
-    full_version_string=re.findall(b"\(Ubuntu GLIBC .*\)",data)[0].decode()
-    long_version_string=full_version_string.replace("(Ubuntu GLIBC ","").replace(")","")
+    _=f.read()
     f.close()
-    return long_version_string
+    pattern = b"GLIBC (\d+\.\d+)-(\w+)"
+    res = re.search(pattern, _)
+    if res:
+        majorVersion = res.group(1).decode()
+        release      = res.group(2).decode()
+        libcVersion = "{}-{}".format(majorVersion, release)
+        return libcVersion
+    else:
+        return ""
+
 class LIBC(ELF):
 #   Ex:  GNU C Library (Ubuntu GLIBC 2.27-3ubuntu1)
-#   "2.27-3ubuntu1" is long_version_string
-#   "2.27" is short_version_string
-	def __init__(self,path):
-		super().__init__(path,checksec=0)
-		
-		try:
-			self.long_version_string=find_Ubuntu_libc(path)
-		except:
-			raise Exception("Not Ubuntu GLIBC")
-		if not (self.long_version_string):
-			raise Exception("Not Ubuntu GLIBC")
-		self.short_version_string=self.long_version_string.split("-")[0]
+#   "2.27-3ubuntu1" is libcVersion
+#   "2.27" is majorVersion 
+    def __init__(self,path):
+        super().__init__(path,checksec=0)
+        self.libcVersion=libcVersion(path)
+        if (self.libcVersion == ""):
+            print("Ubuntu glibc not detected!")
+            exit(1)
+        self.majorVersion=self.libcVersion.split("-")[0]
+
 def fetch_file(working_dir: str,name_file: str):
     url="{}{}".format(pkd_url,name_file)
     wget.download(url,out="{}/{}".format(working_dir,name_file))
+
 def extract_file(file_path,out_dir):
     Archive(file_path).extractall(out_dir)
+
 def unstrip(libc: LIBC):
-    id_=random.randint(1,50)
-    working_dir="/tmp/unstrip_{}".format(id_)
+    working_dir="/tmp/unstrip_{}".format(str(uuid.uuid4()))
     if os.path.exists(working_dir):
         shutil.rmtree(working_dir)
     os.mkdir(working_dir)
-    libc6_dbg_deb="libc6-dbg_{}_{}.deb".format(libc.long_version_string,libc.arch)
+    libc6_dbg_deb="libc6-dbg_{}_{}.deb".format(libc.libcVersion,libc.arch)
     fetch_file(working_dir,libc6_dbg_deb)
     extract_file("{}/{}".format(working_dir,libc6_dbg_deb),working_dir)
     try:
@@ -46,7 +53,7 @@ def unstrip(libc: LIBC):
                 "{}/usr/lib/debug/lib/{}-linux-gnu/libc-{}.so".format(
                     working_dir,
                     "x86_64" if libc.arch=="amd64" else "i386",
-                    libc.short_version_string)
+                    libc.majorVersion)
         ])
     except subprocess.CalledProcessError: #use build-id files method
         build_id=libc.buildid
@@ -63,33 +70,33 @@ def unstrip(libc: LIBC):
         )
         file_ld=get_ld(libc) #This method requires ld
     shutil.rmtree(working_dir)
+
 def get_ld(libc: LIBC):
-    id_=random.randint(50,100)
-    working_dir="/tmp/get_ld_{}".format(id_)
+    working_dir="/tmp/get_ld_{}".format(str(uuid.uuid4()))
     if os.path.exists(working_dir):
         shutil.rmtree(working_dir)
     os.mkdir(working_dir)
-    libc6_bin_deb="libc6_{}_{}.deb".format(libc.long_version_string,libc.arch)
+    libc6_bin_deb="libc6_{}_{}.deb".format(libc.libcVersion,libc.arch)
     fetch_file(working_dir,libc6_bin_deb)
     extract_file("{}/{}".format(working_dir,libc6_bin_deb),working_dir)
     try: #cp ld binary
         shutil.copy("{}/lib/{}-linux-gnu/ld-{}.so".format(
             working_dir,
             "x86_64" if libc.arch=="amd64" else "i386",
-            libc.short_version_string,
+            libc.majorVersion,
         ),".")
-        file_ld=ELF("ld-{}.so".format(libc.short_version_string),checksec=0)
+        file_ld=ELF("ld-{}.so".format(libc.majorVersion),checksec=0)
     except FileNotFoundError:
         shutil.copy("{}/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2".format(working_dir),".")
         file_ld=ELF("./ld-linux-x86-64.so.2",checksec=0)
     return file_ld
+
 def unstrip_ld(libc: LIBC,file_ld :ELF):
-    id_=random.randint(1,50)
-    working_dir="/tmp/unstrip_{}".format(id_)
+    working_dir="/tmp/unstrip_{}".format(str(uuid.uuid4()))
     if os.path.exists(working_dir):
         shutil.rmtree(working_dir)
     os.mkdir(working_dir)
-    libc6_dbg_deb="libc6-dbg_{}_{}.deb".format(libc.long_version_string,libc.arch)
+    libc6_dbg_deb="libc6-dbg_{}_{}.deb".format(libc.libcVersion,libc.arch)
     fetch_file(working_dir,libc6_dbg_deb)
     extract_file("{}/{}".format(working_dir,libc6_dbg_deb),working_dir)
     try: #unstrip ld binary
@@ -100,7 +107,7 @@ def unstrip_ld(libc: LIBC,file_ld :ELF):
              "{}/usr/lib/debug/lib/{}-linux-gnu/ld-{}.so".format(
                 working_dir,
                 "x86_64" if libc.arch=="amd64" else "i386",
-                libc.short_version_string)
+                libc.majorVersion)
             ]
         )
     except subprocess.CalledProcessError:
@@ -119,9 +126,11 @@ def unstrip_ld(libc: LIBC,file_ld :ELF):
             shutil.rmtree(working_dir)
             raise ValueError("eu-unstrip return {}".format(unstripping_ld))
     shutil.rmtree(working_dir)
+
 def getsrc(libc: LIBC):
-    srcfile="glibc_{}.orig.tar.xz".format(libc.short_version_string)
+    srcfile="glibc_{}.orig.tar.xz".format(libc.majorVersion)
     fetch_file(".",srcfile)
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("libc",metavar="<Libc file>")
