@@ -3,20 +3,28 @@ import wget
 from pyunpack import Archive
 from pwn import ELF
 import uuid
-pkd_url="https://launchpad.net/ubuntu/+archive/primary/+files/"
-def libcVersion(path) -> str:
+import patoolib
+
+pkd_url="https://launchpad.net/ubuntu/+archive/primary/+files"
+def libcVersion(path) -> tuple:
     f=open(path,"rb")
     _=f.read()
     f.close()
     pattern = b"GLIBC (\d+\.\d+)-(\w+)"
     res = re.search(pattern, _)
     if res:
-        majorVersion = res.group(1).decode()
-        release      = res.group(2).decode()
-        libcVersion = "{}-{}".format(majorVersion, release)
-        return libcVersion
+        libcVersion = res.group(1).decode()
+        releaseNumber      = res.group(2).decode()
+        return (libcVersion, releaseNumber)
     else:
         return ""
+
+def extract(archive: str, extractPath: str, extractFiles: tuple = ()):
+    try:
+        Archive(archive).extractall(extractPath)
+    except:
+        print("err: extract()")
+        exit(1)
 
 class LIBC(ELF):
 #   Ex:  GNU C Library (Ubuntu GLIBC 2.27-3ubuntu1)
@@ -24,112 +32,134 @@ class LIBC(ELF):
 #   "2.27" is majorVersion 
     def __init__(self,path):
         super().__init__(path,checksec=0)
-        self.libcVersion=libcVersion(path)
+        self.libcVersion, self.releaseNumber = libcVersion(path)
         if (self.libcVersion == ""):
             print("Ubuntu glibc not detected!")
             exit(1)
+        self.libc6_bin_deb = "libc6_{}_{}.deb".format(self.libcVersion,self.arch)
+        self.libc6_dbg_deb = "libc6-dbg_{}_{}.deb".format(self.libcVersion,self.arch)
+        self.workDir = "/tmp/pwninit_{}".format(str(uuid.uuid4()))
+        self.linkerWorkDir = "{}/linker".format(self.workDir)
+        self.libcWorkDir = "{}/libc".format(self.workDir)
+        self.dbgSym = "{}/dbgsym".format(self.workDir)
+        self.libcBin = "{}/libcbin".format(self.workDir)
+        if os.path.exists(self.workDir):
+            shutil.rmtree(self.workDir)
+        os.mkdir(self.workDir)
+        os.mkdir(self.linkerWorkDir)
+        os.mkdir(self.libcWorkDir)
+        os.mkdir(self.dbgSym)
         self.majorVersion=self.libcVersion.split("-")[0]
 
-def fetch_file(working_dir: str,name_file: str):
-    url="{}{}".format(pkd_url,name_file)
-    wget.download(url,out="{}/{}".format(working_dir,name_file))
+    def __del__(self):
+        if os.path.exists(self.workDir):
+            shutil.rmtree(self.workDir)
 
-def extract_file(file_path,out_dir):
-    Archive(file_path).extractall(out_dir)
+    def getLinker(self, path = "."):
+        #get ld binary
+        _ = "{}/{}".format(pkd_url, self.libc6_bin_deb)
+        archive = "{}/{}".format(self.workDir, self.libc6_bin_deb)
+        wget.download(
+            _,
+            archive)
+        _ = self.libcBin
 
-def unstrip(libc: LIBC):
-    working_dir="/tmp/unstrip_{}".format(str(uuid.uuid4()))
-    if os.path.exists(working_dir):
-        shutil.rmtree(working_dir)
-    os.mkdir(working_dir)
-    libc6_dbg_deb="libc6-dbg_{}_{}.deb".format(libc.libcVersion,libc.arch)
-    fetch_file(working_dir,libc6_dbg_deb)
-    extract_file("{}/{}".format(working_dir,libc6_dbg_deb),working_dir)
-    try:
-        unstripping_libc=subprocess.check_call(
-              ["/usr/bin/eu-unstrip",
-               "-o",libc.path,
-                libc.path, 
-                "{}/usr/lib/debug/lib/{}-linux-gnu/libc-{}.so".format(
-                    working_dir,
-                    "x86_64" if libc.arch=="amd64" else "i386",
-                    libc.majorVersion)
-        ])
-    except subprocess.CalledProcessError: #use build-id files method
-        build_id=libc.buildid
-        unstripping_libc=subprocess.check_call(
-            ["/usr/bin/eu-unstrip",
-              "-o",libc.path,
-              libc.path, 
-              "{}/usr/lib/debug/.build-id/{}/{}.debug".format(
-                    working_dir,
-                    build_id[:1].hex(), #build_id[0] is int
-                    build_id[1:].hex()
-              )
-            ]
-        )
-        file_ld=get_ld(libc) #This method requires ld
-    shutil.rmtree(working_dir)
+        if not os.path.exists(_):
+            os.mkdir(_)
+            extract(archive, _)
 
-def get_ld(libc: LIBC):
-    working_dir="/tmp/get_ld_{}".format(str(uuid.uuid4()))
-    if os.path.exists(working_dir):
-        shutil.rmtree(working_dir)
-    os.mkdir(working_dir)
-    libc6_bin_deb="libc6_{}_{}.deb".format(libc.libcVersion,libc.arch)
-    fetch_file(working_dir,libc6_bin_deb)
-    extract_file("{}/{}".format(working_dir,libc6_bin_deb),working_dir)
-    try: #cp ld binary
-        shutil.copy("{}/lib/{}-linux-gnu/ld-{}.so".format(
-            working_dir,
-            "x86_64" if libc.arch=="amd64" else "i386",
-            libc.majorVersion,
-        ),".")
-        file_ld=ELF("ld-{}.so".format(libc.majorVersion),checksec=0)
-    except FileNotFoundError:
-        shutil.copy("{}/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2".format(working_dir),".")
-        file_ld=ELF("./ld-linux-x86-64.so.2",checksec=0)
-    return file_ld
+        linkerPath = "{}/lib/{}-linux-gnu/ld-{}.so".format(
+                _,
+                "x86_64" if self.arch=="amd64" else "i386",
+                self.libcVersion)
+        if not os.path.exists(linkerPath):
+            linkerPath = "{}/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2".format(_)
+        try:
+            ELF(linkerPath, checksec=0)
+            shutil.copy(linkerPath, path)
+            linker=ELF("{}/ld-linux-x86-64.so.2".format(path),checksec=0)
+        except:
+            print("err: ELF()")
+            exit(1)
 
-def unstrip_ld(libc: LIBC,file_ld :ELF):
-    working_dir="/tmp/unstrip_{}".format(str(uuid.uuid4()))
-    if os.path.exists(working_dir):
-        shutil.rmtree(working_dir)
-    os.mkdir(working_dir)
-    libc6_dbg_deb="libc6-dbg_{}_{}.deb".format(libc.libcVersion,libc.arch)
-    fetch_file(working_dir,libc6_dbg_deb)
-    extract_file("{}/{}".format(working_dir,libc6_dbg_deb),working_dir)
-    try: #unstrip ld binary
-        unstripping_ld=subprocess.check_call(
-            ["/usr/bin/eu-unstrip",
-             "-o",file_ld.path,
-             file_ld.path,
-             "{}/usr/lib/debug/lib/{}-linux-gnu/ld-{}.so".format(
-                working_dir,
-                "x86_64" if libc.arch=="amd64" else "i386",
-                libc.majorVersion)
-            ]
-        )
-    except subprocess.CalledProcessError:
-        ld_buildid=file_ld.buildid
-        unstripping_ld=subprocess.check_call(
-             ["/usr/bin/eu-unstrip",
-             "-o",file_ld.path,
-             file_ld.path,
-             "{}/usr/lib/debug/.build-id/{}/{}.debug".format(
-                working_dir,
-                ld_buildid[:1].hex(),
-                ld_buildid[1:].hex())
-            ]
-        )
-        if unstripping_ld:
-            shutil.rmtree(working_dir)
-            raise ValueError("eu-unstrip return {}".format(unstripping_ld))
-    shutil.rmtree(working_dir)
+        _ = "{}/{}".format(pkd_url, self.libc6_dbg_deb)
+        archive = "{}/{}".format(self.workDir, self.libc6_dbg_deb)
+        if not os.path.exists(archive):
+            wget.download(
+                _,
+                archive)
+        
+        _ = self.dbgSym
+        if not os.path.exists(_):
+            os.mkdir(_)
+            extract(archive, _)
 
-def getsrc(libc: LIBC):
-    srcfile="glibc_{}.orig.tar.xz".format(libc.majorVersion)
-    fetch_file(".",srcfile)
+        try:
+            cmd = "/usr/bin/eu-unstrip -o {} {} {}/usr/lib/debug/lib/{}-linux-gnu/ld-{}.so".format(
+                linker.path,
+                linker.path,
+                self.dbgSym,
+                "x86_64" if self.arch=="amd64" else "i386",
+                self.libcVersion
+            )
+            _=subprocess.check_call(
+                cmd.split()
+            )
+        except subprocess.CalledProcessError:
+            cmd = "/usr/bin/eu-unstrip -o {} {} {}/usr/lib/debug/.build-id/{}/{}.debug".format(
+                linker.path,
+                linker.path,
+                self.dbgSym,
+                linker.buildid[:1].hex(),
+                linker.buildid[1:].hex()
+            )
+            _=subprocess.check_call(
+                cmd.split()
+            )
+        if _:
+            print("err {}: eu-unstrip".format(_))
+            exit(1)
+
+    def unstripLibc(self):
+        archive = "{}/{}".format(self.workDir, self.libc6_dbg_deb)
+        if not os.path.exists(archive):
+            wget.download(
+                _,
+                archive)
+        
+        _ = self.dbgSym
+        if not os.path.exists(_):
+            os.mkdir(_)
+            extract(archive, _)
+
+        try:
+            cmd = "/usr/bin/eu-unstrip -o {} {} {}/usr/lib/debug/lib/{}-linux-gnu/libc-{}.so".format(
+                self.path,
+                self.path,
+                self.dbgSym,
+                "x86_64" if self.arch=="amd64" else "i386",
+                self.libcVersion
+            )
+            _=subprocess.check_call(
+                cmd.split()
+            )
+        except subprocess.CalledProcessError:
+            cmd = "/usr/bin/eu-unstrip -o {} {} {}/usr/lib/debug/.build-id/{}/{}.debug".format(
+                self.path,
+                self.path,
+                self.dbgSym,
+                self.buildid[:1].hex(),
+                self.buildid[1:].hex()
+            )
+            _=subprocess.check_call(
+                cmd.split()
+            )
+        if _:
+            print("err {}: eu-unstrip".format(_))
+            exit(1)
+
+    def getSrc(self):
+        wget.download("glibc_{}.orig.tar.xz".format(self.libcVersion))
 
 def main():
     parser = argparse.ArgumentParser()
@@ -140,13 +170,13 @@ def main():
     args=parser.parse_args()
     if not args.libc:
         return 1
-    file_libc=LIBC(args.libc)
+    libcObject=LIBC(args.libc)
     if args.unstrip:
-        unstrip(file_libc)
+        libcObject.unstripLibc()
     if args.get_linker:
-        file_ld=get_ld(file_libc)
-        unstrip_ld(file_libc,file_ld)
+        libcObject.getLinker()
     if args.get_src:
-        getsrc(file_libc)
+        libcObject.getSrc()
+        
 if __name__=='__main__':
     main()
