@@ -39,17 +39,11 @@ class LIBC(ELF):
         self.libc6_bin_deb = "libc6_{}_{}.deb".format(self.libcVersion,self.arch)
         self.libc6_dbg_deb = "libc6-dbg_{}_{}.deb".format(self.libcVersion,self.arch)
         self.workDir = "/tmp/pwninit_{}".format(str(uuid.uuid4()))
-        self.linkerWorkDir = "{}/linker".format(self.workDir)
-        self.libcWorkDir = "{}/libc".format(self.workDir)
         self.dbgSym = "{}/dbgsym".format(self.workDir)
         self.libcBin = "{}/libcbin".format(self.workDir)
         if os.path.exists(self.workDir):
             shutil.rmtree(self.workDir)
         os.mkdir(self.workDir)
-        os.mkdir(self.linkerWorkDir)
-        os.mkdir(self.libcWorkDir)
-        os.mkdir(self.dbgSym)
-        self.majorVersion=self.libcVersion.split("-")[0]
 
     def __del__(self):
         if os.path.exists(self.workDir):
@@ -177,6 +171,6 @@ def main():
         libcObject.getLinker()
     if args.get_src:
         libcObject.getSrc()
-        
+
 if __name__=='__main__':
     main()
