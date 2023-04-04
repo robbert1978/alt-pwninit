@@ -10,7 +10,7 @@ def libcVersion(path) -> tuple:
     f=open(path,"rb")
     _=f.read()
     f.close()
-    pattern = b"GLIBC (\d+\.\d+)-(\w+)"
+    pattern = b"GLIBC (\d+\.\d+)-(\w+\d+(?:\.\d+)?)?"
     res = re.search(pattern, _)
     if res:
         libcVersion = res.group(1).decode()
