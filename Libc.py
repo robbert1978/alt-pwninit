@@ -6,6 +6,7 @@ import uuid
 import patoolib
 
 pkd_url="https://launchpad.net/ubuntu/+archive/primary/+files"
+
 def libcVersion(path) -> tuple:
     f=open(path,"rb")
     _=f.read()
@@ -28,16 +29,16 @@ def extract(archive: str, extractPath: str, extractFiles: tuple = ()):
 
 class LIBC(ELF):
 #   Ex:  GNU C Library (Ubuntu GLIBC 2.27-3ubuntu1)
-#   "2.27-3ubuntu1" is libcVersion
-#   "2.27" is majorVersion 
+#   "2.27" is libcVersion
+#   "3ubuntu1" is releaseNumber 
     def __init__(self,path):
         super().__init__(path,checksec=0)
         self.libcVersion, self.releaseNumber = libcVersion(path)
         if (self.libcVersion == ""):
             print("Ubuntu glibc not detected!")
             exit(1)
-        self.libc6_bin_deb = "libc6_{}_{}.deb".format(self.libcVersion,self.arch)
-        self.libc6_dbg_deb = "libc6-dbg_{}_{}.deb".format(self.libcVersion,self.arch)
+        self.libc6_bin_deb = "libc6_{}-{}_{}.deb".format(self.libcVersion,self.releaseNumber,self.arch)
+        self.libc6_dbg_deb = "libc6-dbg_{}-{}_{}.deb".format(self.libcVersion,self.releaseNumber,self.arch)
         self.workDir = "/tmp/pwninit_{}".format(str(uuid.uuid4()))
         self.dbgSym = "{}/dbgsym".format(self.workDir)
         self.libcBin = "{}/libcbin".format(self.workDir)
@@ -49,7 +50,7 @@ class LIBC(ELF):
         if os.path.exists(self.workDir):
             shutil.rmtree(self.workDir)
 
-    def getLinker(self, path = "."):
+    def getLinker(self, path = ".") -> ELF:
         #get ld binary
         _ = "{}/{}".format(pkd_url, self.libc6_bin_deb)
         archive = "{}/{}".format(self.workDir, self.libc6_bin_deb)
@@ -62,18 +63,14 @@ class LIBC(ELF):
             os.mkdir(_)
             extract(archive, _)
 
-        linkerPath = "{}/lib/{}-linux-gnu/ld-{}.so".format(
-                _,
-                "x86_64" if self.arch=="amd64" else "i386",
-                self.libcVersion)
-        if not os.path.exists(linkerPath):
-            linkerPath = "{}/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2".format(_)
+        linkerPath = "{}/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2".format(_)
+
         try:
-            ELF(linkerPath, checksec=0)
+            ELF(linkerPath, checksec=False)
             shutil.copy(linkerPath, path)
-            linker=ELF("{}/ld-linux-x86-64.so.2".format(path),checksec=0)
-        except:
-            print("err: ELF()")
+            linker=ELF("{}/ld-linux-x86-64.so.2".format(path),checksec=False)
+        except FileNotFoundError:
+            print("err: Can't find the linkerfile")
             exit(1)
 
         _ = "{}/{}".format(pkd_url, self.libc6_dbg_deb)
@@ -87,7 +84,7 @@ class LIBC(ELF):
         if not os.path.exists(_):
             os.mkdir(_)
             extract(archive, _)
-
+        #try unstrip the linkerfile
         try:
             cmd = "/usr/bin/eu-unstrip -o {} {} {}/usr/lib/debug/lib/{}-linux-gnu/ld-{}.so".format(
                 linker.path,
@@ -113,7 +110,7 @@ class LIBC(ELF):
         if _:
             print("err {}: eu-unstrip".format(_))
             exit(1)
-
+        return linker
     def unstripLibc(self):
         archive = "{}/{}".format(self.workDir, self.libc6_dbg_deb)
         if not os.path.exists(archive):

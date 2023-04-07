@@ -11,11 +11,10 @@ def main():
     file_bin=ELF(args.bin)  #Check bin is a valid ELF ?
     file_libc=Libc.LIBC(args.libc) #Check bin is a valid LIBC ?
     if args.ld:
-        file_ld=ELF(args.ld,checksec=0)
+        file_ld=ELF(args.ld,checksec=False)
     else:
-        file_ld=Libc.get_ld(file_libc)
-    Libc.unstrip(file_libc)
-    Libc.unstrip_ld(file_libc,file_ld)
+        file_ld=file_libc.getLinker()
+    file_libc.unstripLibc()
     patch_elf.patch(file_bin,file_libc,file_ld)
 
 if __name__=='__main__':

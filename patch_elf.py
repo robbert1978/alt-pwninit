@@ -25,7 +25,7 @@ def main():
         return 1
     file_bin=ELF(args.bin) #Check bin is a valid ELF ?
     file_libc=LIBC(args.libc)#Check bin is a valid LIBC ?
-    file_ld=ELF(args.ld,checksec=0) #Check ld is a valid ELF ?
+    file_ld=ELF(args.ld,checksec=False) #Check ld is a valid ELF ?
     patch(file_bin,file_libc,file_ld)
 if __name__=='__main__':
     main()
