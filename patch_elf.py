@@ -4,7 +4,7 @@ from Libc import LIBC
 def patch(bin: ELF,libc:LIBC,ld:ELF):
     get_file_name = lambda file_path: file_path.split("/")[-1]
     if get_file_name(libc.path) != "libc.so.6":
-        subprocess.check_call(["/usr/bin/rm","-rf","./libc.so.6"])
+        subprocess.check_call(["/usr/bin/rm","-rf","./libc.so.6"],stderr=open("/tmp/pwninit_log","a+"))
         make_symlink=subprocess.check_call(["/bin/ln","-s","./{}".format(get_file_name(libc.path)),"libc.so.6"])
     run_patchelf=subprocess.check_call(
             ["/usr/bin/patchelf",
@@ -12,7 +12,8 @@ def patch(bin: ELF,libc:LIBC,ld:ELF):
               "--set-interpreter","./{}".format(get_file_name(ld.path)),
               "--output","{}_patched".format(get_file_name(bin.path)),
               "./{}".format(get_file_name(bin.path)),        
-            ]
+            ],
+            stderr=open("/tmp/pwninit_log","a+")
     )
     print("\nNew file: {}_patched".format(get_file_name(bin.path)))
 def main():

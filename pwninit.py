@@ -1,5 +1,7 @@
 import patch_elf,Libc,argparse
 from pwn import ELF
+from contextlib import redirect_stderr
+import os,sys
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-b","--bin",metavar="<Bin file>",help="<Binary to pwn>",required=True)

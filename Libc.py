@@ -86,26 +86,32 @@ class LIBC(ELF):
             extract(archive, _)
         #try unstrip the linkerfile
         try:
-            cmd = "/usr/bin/eu-unstrip -o {} {} {}/usr/lib/debug/lib/{}-linux-gnu/ld-{}.so".format(
-                linker.path,
-                linker.path,
-                self.dbgSym,
-                "x86_64" if self.arch=="amd64" else "i386",
-                self.libcVersion
-            )
-            _=subprocess.check_call(
-                cmd.split()
+            _ = subprocess.check_call(
+                [
+                    "/usr/bin/eu-unstrip",
+                    "-o",linker.path,
+                    linker.path,
+                    "{}/usr/lib/debug/lib/{}-linux-gnu/ld-{}.so".format(
+                        self.dbgSym,
+                        "x86_64" if self.arch=="amd64" else "i386",
+                        self.libcVersion
+                    )
+                ],
+                stderr=open("/tmp/pwninit_log","a+")
             )
         except subprocess.CalledProcessError:
-            cmd = "/usr/bin/eu-unstrip -o {} {} {}/usr/lib/debug/.build-id/{}/{}.debug".format(
-                linker.path,
-                linker.path,
-                self.dbgSym,
-                linker.buildid[:1].hex(),
-                linker.buildid[1:].hex()
-            )
-            _=subprocess.check_call(
-                cmd.split()
+            _ = subprocess.check_call(
+                [
+                    "/usr/bin/eu-unstrip",
+                    "-o",linker.path,
+                    linker.path,
+                    "{}/usr/lib/debug/.build-id/{}/{}.debug".format(
+                            self.dbgSym,
+                            linker.buildid[:1].hex(),
+                            linker.buildid[1:].hex()
+                    )
+                ],
+                stderr=open("/tmp/pwninit_log","a+")
             )
         if _:
             print("err {}: eu-unstrip".format(_))
@@ -124,26 +130,32 @@ class LIBC(ELF):
             extract(archive, _)
 
         try:
-            cmd = "/usr/bin/eu-unstrip -o {} {} {}/usr/lib/debug/lib/{}-linux-gnu/libc-{}.so".format(
-                self.path,
-                self.path,
-                self.dbgSym,
-                "x86_64" if self.arch=="amd64" else "i386",
-                self.libcVersion
-            )
-            _=subprocess.check_call(
-                cmd.split()
+            _ = subprocess.check_call(
+                [
+                    "/usr/bin/eu-unstrip",
+                    "-o",self.path,
+                    self.path,
+                    "{}/usr/lib/debug/lib/{}-linux-gnu/libc-{}.so".format(
+                        self.dbgSym,
+                        "x86_64" if self.arch=="amd64" else "i386",
+                        self.libcVersion
+                    )
+                ],
+                stderr=open("/tmp/pwninit_log","a+")
             )
         except subprocess.CalledProcessError:
-            cmd = "/usr/bin/eu-unstrip -o {} {} {}/usr/lib/debug/.build-id/{}/{}.debug".format(
-                self.path,
-                self.path,
-                self.dbgSym,
-                self.buildid[:1].hex(),
-                self.buildid[1:].hex()
-            )
-            _=subprocess.check_call(
-                cmd.split()
+            _ = subprocess.check_call(
+                [
+                    "/usr/bin/eu-unstrip",
+                    "-o",self.path,
+                    self.path,
+                    "{}/usr/lib/debug/.build-id/{}/{}.debug".format(
+                        self.dbgSym,
+                        self.buildid[:1].hex(),
+                        self.buildid[1:].hex()
+                    )
+                ],
+                stderr=open("/tmp/pwninit_log","a+")
             )
         if _:
             print("err {}: eu-unstrip".format(_))
