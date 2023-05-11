@@ -119,9 +119,10 @@ class LIBC(ELF):
         return linker
     def unstripLibc(self):
         archive = "{}/{}".format(self.workDir, self.libc6_dbg_deb)
+        linkArchive = "{}/{}".format(pkd_url, self.libc6_dbg_deb)
         if not os.path.exists(archive):
             wget.download(
-                _,
+                linkArchive,
                 archive)
         
         _ = self.dbgSym
