@@ -7,6 +7,16 @@ import patoolib
 
 pkd_url="https://launchpad.net/ubuntu/+archive/primary/+files"
 
+def check_version(version_str) -> bool:
+    # Split the version string into major, minor, and patch components
+    major, minor = map(int, version_str.split('.'))
+    
+    # Check if version is greater than or equal to 2.39
+    if (major, minor) >= (2, 39):
+        return True
+    else:
+        return False
+
 def libcVersion(path) -> tuple:
     f=open(path,"rb")
     _=f.read()
@@ -63,14 +73,17 @@ class LIBC(ELF):
             os.mkdir(_)
             extract(archive, _)
 
-        linkerPath = "{}/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2".format(_)
+        linkerPath = "{}/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2".format(
+           _+"/usr" if check_version(self.libcVersion) else _
+        )
+        # Since version 2.39, linker is at usr/lib/x86_64-linux-gnu
 
         try:
             ELF(linkerPath, checksec=False)
             shutil.copy(linkerPath, path)
             linker=ELF("{}/ld-linux-x86-64.so.2".format(path),checksec=False)
         except FileNotFoundError:
-            print("err: Can't find the linkerfile")
+            print("\nerr: Can't find the linkerfile")
             exit(1)
 
         _ = "{}/{}".format(pkd_url, self.libc6_dbg_deb)
