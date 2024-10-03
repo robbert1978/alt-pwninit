@@ -73,13 +73,23 @@ class LIBC(ELF):
             os.mkdir(_)
             extract(archive, _)
 
-        linkerPath = "{}/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2".format(_)
-
         try:
+
+            linkerPath = "{}/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2".format(
+                _)
+
+            if not os.path.exists(linkerPath):
+                linkerPath = "{}/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2".format(
+                    _)
+
+            if not os.path.exists(linkerPath):
+                raise FileNotFoundError
+
             ELF(linkerPath, checksec=False)
             shutil.copy(linkerPath, path)
             linker = ELF("{}/ld-linux-x86-64.so.2".format(path),
                          checksec=False)
+
         except FileNotFoundError:
             print("err: Can't find the linkerfile")
             exit(1)
