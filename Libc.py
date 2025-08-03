@@ -75,20 +75,39 @@ class LIBC(ELF):
 
         try:
 
-            linkerPath = "{}/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2".format(
-                _)
+            if self.arch == "amd64":
 
-            if not os.path.exists(linkerPath):
-                linkerPath = "{}/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2".format(
+                linkerPath = "{}/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2".format(
                     _)
 
-            if not os.path.exists(linkerPath):
-                raise FileNotFoundError
+                if not os.path.exists(linkerPath):
+                    linkerPath = "{}/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2".format(
+                        _)
 
-            ELF(linkerPath, checksec=False)
-            shutil.copy(linkerPath, path)
-            linker = ELF("{}/ld-linux-x86-64.so.2".format(path),
-                         checksec=False)
+                if not os.path.exists(linkerPath):
+                    raise FileNotFoundError
+
+                ELF(linkerPath, checksec=False)
+                shutil.copy(linkerPath, path)
+                linker = ELF("{}/ld-linux-x86-64.so.2".format(path),
+                             checksec=False)
+
+            elif self.arch == "i386":
+
+                linkerPath = "{}/lib/i386-linux-gnu/ld-linux.so.2".format(
+                    _)
+
+                if not os.path.exists(linkerPath):
+                    linkerPath = "{}/usr/lib/i386-linux-gnu/ld-linux.so.2".format(
+                        _)
+
+                if not os.path.exists(linkerPath):
+                    raise FileNotFoundError
+
+                ELF(linkerPath, checksec=False)
+                shutil.copy(linkerPath, path)
+                linker = ELF("{}/ld-linux.so.2".format(path),
+                             checksec=False)
 
         except FileNotFoundError:
             print("err: Can't find the linkerfile")
