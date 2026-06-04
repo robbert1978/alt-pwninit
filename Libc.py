@@ -3,6 +3,8 @@ import random
 import shutil
 import argparse
 import re
+import json
+import urllib.request
 import subprocess
 import wget
 from pyunpack import Archive
@@ -10,21 +12,27 @@ from pwn import ELF
 import uuid
 import patoolib
 
+# Ubuntu keeps a flat archive of every published file here.
 pkd_url = "https://launchpad.net/ubuntu/+archive/primary/+files"
+# Debian historical packages are resolved through the snapshot service.
+snapshot_url = "https://snapshot.debian.org"
 
 
 def libcVersion(path) -> tuple:
     f = open(path, "rb")
     _ = f.read()
     f.close()
-    pattern = b"GLIBC (\d+\.\d+)-(\w+\d+(?:\.\d+)?)?"
+    #   Ex (Ubuntu): GLIBC 2.27-3ubuntu1   -> release "3ubuntu1"
+    #   Ex (Debian): GLIBC 2.31-13+deb11u5 -> release "13+deb11u5"
+    pattern = b"(Ubuntu|Debian) GLIBC ([0-9]+[.][0-9]+)-([^)]+)"
     res = re.search(pattern, _)
     if res:
-        libcVersion = res.group(1).decode()
-        releaseNumber = res.group(2).decode()
-        return (libcVersion, releaseNumber)
+        distro = res.group(1).decode()
+        libcVersion = res.group(2).decode()
+        releaseNumber = res.group(3).decode()
+        return (distro, libcVersion, releaseNumber)
     else:
-        return ""
+        return ("", "", "")
 
 
 def extract(archive: str, extractPath: str, extractFiles: tuple = ()):
@@ -37,13 +45,14 @@ def extract(archive: str, extractPath: str, extractFiles: tuple = ()):
 
 class LIBC(ELF):
     #   Ex:  GNU C Library (Ubuntu GLIBC 2.27-3ubuntu1)
+    #   "Ubuntu" is distro
     #   "2.27" is libcVersion
     #   "3ubuntu1" is releaseNumber
     def __init__(self, path):
         super().__init__(path, checksec=0)
-        self.libcVersion, self.releaseNumber = libcVersion(path)
+        self.distro, self.libcVersion, self.releaseNumber = libcVersion(path)
         if (self.libcVersion == ""):
-            print("Ubuntu glibc not detected!")
+            print("Ubuntu/Debian glibc not detected!")
             exit(1)
         self.libc6_bin_deb = "libc6_{}-{}_{}.deb".format(
             self.libcVersion, self.releaseNumber, self.arch)
@@ -60,13 +69,37 @@ class LIBC(ELF):
         if os.path.exists(self.workDir):
             shutil.rmtree(self.workDir)
 
+    def debUrl(self, debName) -> str:
+        # Resolve the download URL of a .deb for the detected distro.
+        if self.distro == "Ubuntu":
+            return "{}/{}".format(pkd_url, debName)
+        # Debian: look the file up on snapshot.debian.org by package/version,
+        # then download it by its content hash.
+        pkg = "libc6-dbg" if "dbg" in debName else "libc6"
+        version = "{}-{}".format(self.libcVersion, self.releaseNumber)
+        api = "{}/mr/binary/{}/{}/binfiles?fileinfo=1".format(
+            snapshot_url, pkg, version)
+        try:
+            with urllib.request.urlopen(api) as resp:
+                data = json.loads(resp.read())
+        except Exception:
+            print("err: can't query snapshot.debian.org for {}".format(debName))
+            exit(1)
+        for entry in data.get("result", []):
+            if entry["architecture"] == self.arch:
+                return "{}/file/{}".format(snapshot_url, entry["hash"])
+        print("err: no Debian {} package for arch {}".format(pkg, self.arch))
+        exit(1)
+
+    def downloadDeb(self, debName, archive):
+        # Download a .deb into the work dir, skipping if already present.
+        if not os.path.exists(archive):
+            wget.download(self.debUrl(debName), archive)
+
     def getLinker(self, path=".") -> ELF:
         # get ld binary
-        _ = "{}/{}".format(pkd_url, self.libc6_bin_deb)
         archive = "{}/{}".format(self.workDir, self.libc6_bin_deb)
-        wget.download(
-            _,
-            archive)
+        self.downloadDeb(self.libc6_bin_deb, archive)
         _ = self.libcBin
 
         if not os.path.exists(_):
@@ -113,12 +146,8 @@ class LIBC(ELF):
             print("err: Can't find the linkerfile")
             exit(1)
 
-        _ = "{}/{}".format(pkd_url, self.libc6_dbg_deb)
         archive = "{}/{}".format(self.workDir, self.libc6_dbg_deb)
-        if not os.path.exists(archive):
-            wget.download(
-                _,
-                archive)
+        self.downloadDeb(self.libc6_dbg_deb, archive)
 
         _ = self.dbgSym
         if not os.path.exists(_):
@@ -160,11 +189,7 @@ class LIBC(ELF):
 
     def unstripLibc(self):
         archive = "{}/{}".format(self.workDir, self.libc6_dbg_deb)
-        linkArchive = "{}/{}".format(pkd_url, self.libc6_dbg_deb)
-        if not os.path.exists(archive):
-            wget.download(
-                linkArchive,
-                archive)
+        self.downloadDeb(self.libc6_dbg_deb, archive)
 
         _ = self.dbgSym
         if not os.path.exists(_):
@@ -204,8 +229,28 @@ class LIBC(ELF):
             exit(1)
 
     def getSrc(self):
-        wget.download(
-            "http://archive.ubuntu.com/ubuntu/pool/main/g/glibc/glibc_{}.orig.tar.xz".format(self.libcVersion))
+        srcName = "glibc_{}.orig.tar.xz".format(self.libcVersion)
+        if self.distro == "Ubuntu":
+            wget.download(
+                "http://archive.ubuntu.com/ubuntu/pool/main/g/glibc/{}".format(srcName))
+            return
+        # Debian: locate the upstream orig tarball on snapshot.debian.org.
+        version = "{}-{}".format(self.libcVersion, self.releaseNumber)
+        api = "{}/mr/package/glibc/{}/srcfiles?fileinfo=1".format(
+            snapshot_url, version)
+        try:
+            with urllib.request.urlopen(api) as resp:
+                data = json.loads(resp.read())
+        except Exception:
+            print("err: can't query snapshot.debian.org for glibc source")
+            exit(1)
+        for h, files in data.get("fileinfo", {}).items():
+            for f in files:
+                if f["name"] == srcName:
+                    wget.download("{}/file/{}".format(snapshot_url, h), srcName)
+                    return
+        print("err: can't find glibc source {}".format(srcName))
+        exit(1)
 
 
 def main():
