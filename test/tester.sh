@@ -14,7 +14,9 @@
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LIBC_PY="$SCRIPT_DIR/../Libc.py"
+PROJECT="$(cd "$SCRIPT_DIR/.." && pwd)"
+LIBC_PY="$PROJECT/Libc.py"
+VENV="$PROJECT/.venv"
 
 # Default matrix: a spread of glibc versions across both supported distros.
 IMAGES=(
@@ -34,6 +36,14 @@ if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
     echo "err: docker is not available (install it / start the daemon)"
     exit 1
 fi
+if ! command -v uv >/dev/null 2>&1; then
+    echo "err: uv is not available (run 'make setup')"
+    exit 1
+fi
+# Sync the project .venv from pyproject.toml (mirrors `make setup`).
+echo "[*] syncing project .venv (uv sync)"
+uv sync --project "$PROJECT" >/dev/null \
+    || { echo "err: 'uv sync' failed (try 'make setup')"; exit 1; }
 
 pass=0
 fail=0
@@ -58,8 +68,9 @@ for image in "${IMAGES[@]}"; do
     fi
     echo "[*] banner: $(strings "$libc" | grep -m1 'GLIBC 2')"
 
-    # Run the tool inside the work dir: -ld gets the linker, -u unstrips the libc.
-    ( cd "$work" && python3 "$LIBC_PY" "$libc" -ld -u ) >"$work/run.log" 2>&1
+    # Run the tool inside the work dir (-ld gets the linker, -u unstrips the
+    # libc), using the project's .venv interpreter.
+    ( cd "$work" && "$VENV/bin/python" "$LIBC_PY" "$libc" -ld -u ) >"$work/run.log" 2>&1
     rc=$?
 
     ok=1

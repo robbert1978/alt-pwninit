@@ -1,0 +1,15 @@
+[project]
+name = "alt-pwninit"
+version = "0.1.0"
+description = "Auto getting linker, unstripping and getting the source code of an Ubuntu or Debian GLibc"
+requires-python = ">=3.10"
+dependencies = [
+    "pwntools", # imported as `pwn`
+    "pyunpack", # imported as `pyunpack`
+    "patool",   # imported as `patoolib` (pyunpack's archive backend)
+    "wget",     # imported as `wget`
+]
+
+[tool.uv]
+# Loose scripts (pwninit.py, Libc.py, patch_elf.py), not an installable package.
+package = false

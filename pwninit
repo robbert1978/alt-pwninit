@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+#
+# Convenience wrapper to run alt-pwninit from any directory.
+#
+# Install it on your PATH once:
+#   make install                          # symlinks into ~/.local/bin
+#   # or manually:
+#   ln -s "$PWD/pwninit" ~/.local/bin/pwninit
+#
+# Then, from any challenge directory:
+#   pwninit -b ./chall -l ./libc.so.6
+#
+set -euo pipefail
+
+# Resolve this script's real path (following symlinks) to locate the project,
+# so it works no matter where it is invoked or symlinked from.
+source="$(readlink -f "${BASH_SOURCE[0]}")"
+PROJECT="$(cd "$(dirname "$source")" && pwd)"
+
+if ! command -v uv >/dev/null 2>&1; then
+    echo "pwninit: 'uv' not found -- run 'make setup' in $PROJECT" >&2
+    exit 1
+fi
+
+# Run in the caller's current directory (so the patched binary, libc.so.6 and
+# fetched linker land here) using the project's uv environment from pyproject.toml.
+exec uv run --project "$PROJECT" "$PROJECT/pwninit.py" "$@"

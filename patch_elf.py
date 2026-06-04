@@ -1,36 +1,51 @@
 import argparse
 import subprocess
+
 from pwn import ELF
+
 from Libc import LIBC
 
 
 def patch(bin: ELF, libc: LIBC, ld: ELF):
-    def get_file_name(file_path): return file_path.split("/")[-1]
+    def get_file_name(file_path):
+        return file_path.split("/")[-1]
+
     if get_file_name(libc.path) != "libc.so.6":
         subprocess.check_call(
-            ["/usr/bin/rm", "-rf", "./libc.so.6"], stderr=open("/tmp/pwninit_log", "a+"))
-        make_symlink = subprocess.check_call(
-            ["/bin/ln", "-s", "./{}".format(get_file_name(libc.path)), "libc.so.6"])
-    run_patchelf = subprocess.check_call(
-        ["/usr/bin/patchelf",
-         "--set-rpath", ".",
-         "--set-interpreter", "./{}".format(get_file_name(ld.path)),
-         "--output", "{}_patched".format(get_file_name(bin.path)),
-         "./{}".format(get_file_name(bin.path)),
-         ],
-        stderr=open("/tmp/pwninit_log", "a+")
+            ["/usr/bin/rm", "-rf", "./libc.so.6"], stderr=open("/tmp/pwninit_log", "a+")
+        )
+        subprocess.check_call(
+            ["/bin/ln", "-s", "./{}".format(get_file_name(libc.path)), "libc.so.6"]
+        )
+    subprocess.check_call(
+        [
+            "/usr/bin/patchelf",
+            "--set-rpath",
+            ".",
+            "--set-interpreter",
+            "./{}".format(get_file_name(ld.path)),
+            "--output",
+            "{}_patched".format(get_file_name(bin.path)),
+            "./{}".format(get_file_name(bin.path)),
+        ],
+        stderr=open("/tmp/pwninit_log", "a+"),
     )
     print("\nNew file: {}_patched".format(get_file_name(bin.path)))
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-b", "--bin", metavar="<Bin file>",
-                        help="<Binary to pwn>", required=True)
-    parser.add_argument("-l", "--libc", metavar="<Libc file>",
-                        help="<Challenge libc>", required=True)
-    parser.add_argument("--ld", help="<A linker to preload the libc> (Optional)",
-                        default="/lib64/ld-linux-x86-64.so.2")
+    parser.add_argument(
+        "-b", "--bin", metavar="<Bin file>", help="<Binary to pwn>", required=True
+    )
+    parser.add_argument(
+        "-l", "--libc", metavar="<Libc file>", help="<Challenge libc>", required=True
+    )
+    parser.add_argument(
+        "--ld",
+        help="<A linker to preload the libc> (Optional)",
+        default="/lib64/ld-linux-x86-64.so.2",
+    )
     args = parser.parse_args()
     if (not args.bin) or (not args.libc):
         return 1
@@ -40,5 +55,5 @@ def main():
     patch(file_bin, file_libc, file_ld)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
